@@ -80,11 +80,15 @@ def gan_trainer(tokenizer, num_epochs, generator, discriminator, g_optimizer, d_
 
                     # Gumbel-Softmax 적용하여 gen_probs 생성
                     fake_probs = torch.nn.functional.gumbel_softmax(fake_output_logits, tau=1, hard=True)  # [batch_size, seq_len, vocab_size]
-
+                    
                     # real 데이터 준비 (one-hot 벡터 사용)
                     real_probs = torch.nn.functional.one_hot(target_ids_batch, num_classes=vocab_size).float()
                     real_probs = real_probs * non_pad_mask  # padding 위치를 0으로 설정
-
+                    
+                    pred_string = tokenizer.decode(fake_probs.argmax(dim=-1)[0], skip_special_tokens=True)
+                    real_string = tokenizer.decode(real_probs.argmax(dim=-1)[0], skip_special_tokens=True)
+                    print(f'[{phase}] pred_string: {pred_string}')
+                    print(f'[{phase}] real_string: {real_string}')
                     # Prepare real data for discriminator
                     real_encoding = {
                         'input_probs': real_probs,
@@ -98,8 +102,10 @@ def gan_trainer(tokenizer, num_epochs, generator, discriminator, g_optimizer, d_
                     }
 
                     # Discriminator loss on real and fake data
-                    _, real_loss = d_train(discriminator, real_encoding, loss_fn, device)
-                    _, fake_loss = d_train(discriminator, fake_encoding, loss_fn, device)
+                    real_output, real_loss = d_train(discriminator, real_encoding, loss_fn, device)
+                    fake_output, fake_loss = d_train(discriminator, fake_encoding, loss_fn, device)
+                    # print(f'[{phase}] real_output ', real_output)
+                    # print(f'[{phase}] fake_output ', fake_output)
                     d_loss = real_loss + fake_loss
                     
                     if phase == 'train':
@@ -150,7 +156,8 @@ def gan_trainer(tokenizer, num_epochs, generator, discriminator, g_optimizer, d_
                 d_lr_scheduler.step()
                 wandb.log({
                     f"{phase}_d_loss": sum(d_losses)/len(d_losses),
-                    f"{phase}_g_loss": sum(g_losses)/len(g_losses)
+                    f"{phase}_g_loss": sum(g_losses)/len(g_losses),
+                    "epoch": epoch,
                 }, step=epoch)
             print(f"{phase} Epoch [{epoch}/{num_epochs}]  D Loss: {sum(d_losses)/len(d_losses)}  G Loss: {sum(g_losses)/len(g_losses)}")
         

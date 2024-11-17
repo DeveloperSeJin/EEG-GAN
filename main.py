@@ -14,7 +14,7 @@ from transformers import BertLMHeadModel, BartTokenizer, BartForConditionalGener
     BertTokenizer, BertConfig, RobertaTokenizer
 
 from data import ZuCo_dataset
-from model_decoding import BrainTranslator, DDataset, BART_BiLSTM, Discriminator
+from model_decoding import BrainTranslator, Discriminator
 from config import get_config
 from train_gan import gan_trainer
 from eval_decoding import eval_model
@@ -102,19 +102,19 @@ if __name__ == '__main__':
     ''' set up dataloader '''
     whole_dataset_dicts = []
     if 'task1' in task_name:
-        dataset_path_task1 = './dataset/ZuCo/task1-SR/pickle/task1-SR-dataset.pickle'
+        dataset_path_task1 = '/mnt/data/members/speech/ZuCo/task1-SR/pickle/task1-SR-dataset.pickle'
         with open(dataset_path_task1, 'rb') as handle:
             whole_dataset_dicts.append(pickle.load(handle))
     if 'task2' in task_name:
-        dataset_path_task2 = './dataset/ZuCo/task2-NR/pickle/task2-NR-dataset.pickle' 
+        dataset_path_task2 = '/mnt/data/members/speech/ZuCo/task2-NR/pickle/task2-NR-dataset.pickle' 
         with open(dataset_path_task2, 'rb') as handle:
             whole_dataset_dicts.append(pickle.load(handle))
     if 'task3' in task_name:
-        dataset_path_task3 = './dataset/ZuCo/task3-TSR/pickle/task3-TSR-dataset.pickle' 
+        dataset_path_task3 = '/mnt/data/members/speech/task3-TSR/pickle/task3-TSR-dataset.pickle' 
         with open(dataset_path_task3, 'rb') as handle:
             whole_dataset_dicts.append(pickle.load(handle))
     if 'taskNRv2' in task_name:
-        dataset_path_taskNRv2 = './dataset/ZuCo/task2-NR-2.0/pickle/task2-NR-2.0-dataset.pickle' 
+        dataset_path_taskNRv2 = '/mnt/data/members/speech/ZuCo/task2-NR-2.0/pickle/task2-NR-2.0-dataset.pickle' 
         with open(dataset_path_taskNRv2, 'rb') as handle:
             whole_dataset_dicts.append(pickle.load(handle))
 
@@ -144,7 +144,7 @@ if __name__ == '__main__':
     # dev dataset
     dev_set = ZuCo_dataset(whole_dataset_dicts, 'dev', tokenizer, subject = subject_choice, eeg_type = eeg_type_choice, bands = bands_choice, setting = dataset_setting, test_input=train_input)
     # test dataset
-    # test_set = ZuCo_dataset(whole_dataset_dict, 'test', tokenizer, subject = subject_choice, eeg_type = eeg_type_choice, bands = bands_choice)
+    test_set = ZuCo_dataset(whole_dataset_dicts, 'test', tokenizer, subject = subject_choice, eeg_type = eeg_type_choice, bands = bands_choice, setting = dataset_setting, test_input=train_input)
 
     dataset_sizes = {'train': len(train_set), 'dev': len(dev_set)}
     print('[INFO]train_set size: ', len(train_set))
@@ -154,8 +154,10 @@ if __name__ == '__main__':
     train_dataloader = DataLoader(train_set, batch_size = batch_size, shuffle=True, num_workers=4)
     # dev dataloader
     val_dataloader = DataLoader(dev_set, batch_size = 1, shuffle=False, num_workers=4)
+    # dev dataloader
+    test_dataloader = DataLoader(test_set, batch_size = 1, shuffle=False, num_workers=4)
     # dataloaders
-    dataloaders = {'train':train_dataloader, 'dev':val_dataloader}
+    dataloaders = {'train':train_dataloader, 'dev':val_dataloader,'test':test_dataloader}
 
 
     # --------------------------------------------------------------------------------
@@ -182,7 +184,7 @@ if __name__ == '__main__':
     # --------------------------------------------------------------------------------
     # Discriminator Define
     vocab_size = tokenizer.vocab_size
-    discriminator = Discriminator(vocab_size=vocab_size)
+    discriminator = Discriminator(vocab_size=vocab_size, embedding_dim=512, hidden_dim=128)
     discriminator = discriminator.to(device)
     d_optimizer = Adam(discriminator.parameters(), lr=lr/10)
     d_lr_scheduler = lr_scheduler.StepLR(d_optimizer, step_size=15, gamma=0.1)

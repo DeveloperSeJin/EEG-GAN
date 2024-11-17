@@ -14,7 +14,7 @@ import copy
 from tqdm import tqdm
 import torch.nn.functional as F
 import time
-from transformers import BertLMHeadModel, BartTokenizer, BartForConditionalGeneration, BartConfig, BartForSequenceClassification, BertTokenizer, BertConfig, BertForSequenceClassification, RobertaTokenizer, RobertaForSequenceClassification, PegasusForConditionalGeneration, PegasusTokenizer, T5Tokenizer, T5ForConditionalGeneration, BertGenerationDecoder
+from transformers import BartTokenizer, BartForConditionalGeneration
 from data import ZuCo_dataset
 from model_decoding import BrainTranslator
 from nltk.translate.bleu_score import sentence_bleu, corpus_bleu
