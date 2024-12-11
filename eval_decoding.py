@@ -27,6 +27,19 @@ metric = evaluate.load("sacrebleu")
 cer_metric = load("cer")
 wer_metric = load("wer")
 
+def one_hot(logits):
+    # Step 1: Compute softmax probabilities
+    softmax_probs = F.softmax(logits, dim=-1)  # [batch_size, seq_len, vocab_size]
+
+    # Step 2: Perform "hard" one-hot encoding in the forward pass
+    hard_one_hot = torch.zeros_like(softmax_probs)
+
+    hard_one_hot.scatter_(-1, softmax_probs.argmax(dim=-1, keepdim=True), 1.0)
+
+    # Step 3: Combine hard one-hot with softmax for backpropagation
+    one_hot_like = (hard_one_hot - softmax_probs) + softmax_probs
+    return one_hot_like
+
 def remove_text_after_token(text, token='</s>'):
     # 특정 토큰 이후의 텍스트를 찾아 제거
     token_index = text.find(token)
@@ -46,7 +59,7 @@ def eval_model(dataloaders, device, tokenizer, model, output_all_results_path = 
     pred_tokens_list_previous = []
     pred_string_list_previous = []
 
-
+    # count = 0
     with open(output_all_results_path,'w') as f:
         for input_embeddings, seq_len, input_masks, input_mask_invert, target_ids, target_mask, sentiment_labels in tqdm(dataloaders['test']):
             # load in batch
@@ -77,6 +90,14 @@ def eval_model(dataloaders, device, tokenizer, model, output_all_results_path = 
             # Original code 
             seq2seqLMoutput = model(input_embeddings_batch, input_masks_batch, input_mask_invert_batch, target_ids_batch) # (batch, time, n_class)
             logits_previous = seq2seqLMoutput.logits
+
+            # if not torch.equal(F.one_hot(logits_previous.argmax(dim = -1), num_classes = tokenizer.vocab_size),one_hot(logits_previous)):
+            #     print('one hot encoding is wrong')
+            #     print(F.one_hot(logits_previous.argmax(dim = -1), num_classes = tokenizer.vocab_size))
+            #     print(one_hot(logits_previous))
+            #     count+=1
+            
+
             probs_previous = logits_previous[0].softmax(dim = 1)
             values_previous, predictions_previous = probs_previous.topk(1)
             predictions_previous = torch.squeeze(predictions_previous)
@@ -227,6 +248,7 @@ def eval_model(dataloaders, device, tokenizer, model, output_all_results_path = 
             else:
                 file_results.write(str(line) + "\n")
 
+    # print(count)
 
 
 if __name__ == '__main__': 
@@ -284,19 +306,19 @@ if __name__ == '__main__':
     ''' set up dataloader '''
     whole_dataset_dicts = []
     if 'task1' in task_name:
-        dataset_path_task1 = './dataset/ZuCo/task1-SR/pickle/task1-SR-dataset.pickle'
+        dataset_path_task1 = '/mnt/data/members/speech/ZuCo/task1-SR/pickle/task1-SR-dataset.pickle'
         with open(dataset_path_task1, 'rb') as handle:
             whole_dataset_dicts.append(pickle.load(handle))
     if 'task2' in task_name:
-        dataset_path_task2 = './dataset/ZuCo/task2-NR/pickle/task2-NR-dataset.pickle' 
+        dataset_path_task2 = '/mnt/data/members/speech/ZuCo/task2-NR/pickle/task2-NR-dataset.pickle' 
         with open(dataset_path_task2, 'rb') as handle:
             whole_dataset_dicts.append(pickle.load(handle))
     if 'task3' in task_name:
-        dataset_path_task3 = './dataset/ZuCo/task3-TSR/pickle/task3-TSR-dataset.pickle' 
+        dataset_path_task3 = '/mnt/data/members/speech/ZuCo/task3-TSR/pickle/task3-TSR-dataset.pickle' 
         with open(dataset_path_task3, 'rb') as handle:
             whole_dataset_dicts.append(pickle.load(handle))
     if 'taskNRv2' in task_name:
-        dataset_path_taskNRv2 = './dataset/ZuCo/task2-NR-2.0/pickle/task2-NR-2.0-dataset.pickle' 
+        dataset_path_taskNRv2 = '/mnt/data/members/speech/ZuCo/task2-NR-2.0/pickle/task2-NR-2.0-dataset.pickle' 
         with open(dataset_path_taskNRv2, 'rb') as handle:
             whole_dataset_dicts.append(pickle.load(handle))
     print()

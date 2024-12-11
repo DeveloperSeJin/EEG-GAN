@@ -2,19 +2,15 @@ import os
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.nn import BCEWithLogitsLoss
-import torch.optim as optim
 from torch.optim import AdamW, Adam, lr_scheduler
 from torch.utils.data import DataLoader
 import pickle
 import json
-import copy
-from tqdm import tqdm
-from transformers import BertLMHeadModel, BartTokenizer, BartForConditionalGeneration, \
-    BertTokenizer, BertConfig, RobertaTokenizer
+from transformers import BartTokenizer, BartForConditionalGeneration, \
+    BertTokenizer, BertConfig
 
 from data import ZuCo_dataset
-from model_decoding import BrainTranslator, Discriminator
+from model_decoding import BrainTranslator, BartDiscriminator, Critic, RNNDiscriminator
 from config import get_config
 from train_gan import gan_trainer
 from eval_decoding import eval_model
@@ -43,6 +39,7 @@ if __name__ == '__main__':
     # task_name = 'task1_task2_task3'
     # task_name = 'task1_task2_taskNRv2'
     task_name = args['task_name'] # default: task1_task2_taskNRv2
+    device_ids = [0] # device setting
 
     save_path = args['save_path'] # default: checkpoints/decoding
     if not os.path.exists(save_path):
@@ -110,7 +107,7 @@ if __name__ == '__main__':
         with open(dataset_path_task2, 'rb') as handle:
             whole_dataset_dicts.append(pickle.load(handle))
     if 'task3' in task_name:
-        dataset_path_task3 = '/mnt/data/members/speech/task3-TSR/pickle/task3-TSR-dataset.pickle' 
+        dataset_path_task3 = '/mnt/data/members/speech/ZuCo/task3-TSR/pickle/task3-TSR-dataset.pickle' 
         with open(dataset_path_task3, 'rb') as handle:
             whole_dataset_dicts.append(pickle.load(handle))
     if 'taskNRv2' in task_name:
@@ -168,24 +165,28 @@ if __name__ == '__main__':
         generator = BrainTranslator(pretrained, in_feature = 105*len(bands_choice), decoder_embedding_size = 1024, additional_encoder_nhead=8, additional_encoder_dim_feedforward = 2048)
 
     generator.to(device)
-
+    generator = torch.nn.DataParallel(generator, device_ids=device_ids)
     ''' set up optimizer and scheduler'''
     g_optimizer = AdamW(generator.parameters(), lr=lr, weight_decay=0.01)
 
     g_lr_scheduler = lr_scheduler.StepLR(g_optimizer, step_size=30, gamma=0.1)
 
     ''' set up loss function '''
-    loss_fn = nn.BCEWithLogitsLoss()
+    # loss_fn = nn.BCEWithLogitsLoss()
     # BCEWithLogitsLoss는 내부에서 sigmoid를 적용한 후 BCELoss를 적용하는데
     # discriminator의 출력층에 sigmoid를 적용하고 있기 때문에
     # BCELoss를 사용해야 한다.
-    # loss_fn = nn.BCELoss()
+    loss_fn = nn.BCELoss()
 
     # --------------------------------------------------------------------------------
     # Discriminator Define
     vocab_size = tokenizer.vocab_size
-    discriminator = Discriminator(vocab_size=vocab_size, embedding_dim=512, hidden_dim=128)
+    
+    discriminator = BartDiscriminator()
+    # discriminator = Critic()
     discriminator = discriminator.to(device)
+    discriminator = torch.nn.DataParallel(discriminator, device_ids=device_ids)
+
     d_optimizer = Adam(discriminator.parameters(), lr=lr/10)
     d_lr_scheduler = lr_scheduler.StepLR(d_optimizer, step_size=15, gamma=0.1)
 

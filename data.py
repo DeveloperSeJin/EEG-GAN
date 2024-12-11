@@ -32,7 +32,7 @@ def get_input_sample(sent_obj, tokenizer, eeg_type = 'GD', bands = ['_t1','_t2',
         word_eeg_embedding = np.concatenate(frequency_features)
 
         if len(word_eeg_embedding) != 105*len(bands):
-            print(f'expect word eeg embedding dim to be {105*len(bands)}, but got {len(word_eeg_embedding)}, return None')
+            # print(f'expect word eeg embedding dim to be {105*len(bands)}, but got {len(word_eeg_embedding)}, return None')
             return None
         
         # assert len(word_eeg_embedding) == 105*len(bands)
@@ -127,7 +127,7 @@ def get_input_sample(sent_obj, tokenizer, eeg_type = 'GD', bands = ['_t1','_t2',
 
     else:
         input_sample['input_embeddings'] = torch.stack(word_embeddings) # max_len * (105*num_bands)
-        print("EEG", input_sample['input_embeddings'])
+        # print("EEG", input_sample['input_embeddings'])
     
     # mask out padding tokens
     input_sample['input_attn_mask'] = torch.zeros(max_len) # 0 is masked out

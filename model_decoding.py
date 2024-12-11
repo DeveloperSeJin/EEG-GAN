@@ -1,51 +1,52 @@
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.data
-from transformers import BartTokenizer, BartForConditionalGeneration, BartConfig, RobertaModel, RobertaTokenizer
-import math
-import numpy as np
-from torch.utils.data import Dataset, DataLoader
-
-class DDataset(Dataset):
-    def __init__(self, texts, labels, tokenizer, max_len=512):
-        self.texts = texts
-        self.labels = labels
-        self.tokenizer = tokenizer
-        self.max_len = max_len
-
-    def __len__(self):
-        return len(self.texts)
-
-    def __getitem__(self, index):
-        text = self.texts[index]
-        label = self.labels[index]
-        
-        encoding = self.tokenizer.encode_plus(
-            text,
-            add_special_tokens=True,
-            max_length=self.max_len,
-            return_token_type_ids=False,
-            padding='max_length',
-            truncation=True,
-            return_attention_mask=True,
-            return_tensors='pt',
-        )
-
-        return {
-            'input_ids': encoding['input_ids'].flatten(),
-            'attention_mask': encoding['attention_mask'].flatten(),
-            'label': torch.tensor(label, dtype=torch.long)
-        }
-    
+from transformers import BartModel
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from transformers import BartForConditionalGeneration
 
+class BartDiscriminator(nn.Module):
+    def __init__(self):
+        super(BartDiscriminator, self).__init__()
+        self.bart = BartModel.from_pretrained('facebook/bart-large')
+        self.embedding_layer = self.bart.shared
+        self.classifier = nn.Linear(self.bart.config.hidden_size, 1)
+        self.sigmoid = nn.Sigmoid()
+    
+    def forward(self, input):
+        dense_embedding = input @ self.embedding_layer.weight
 
-class Discriminator(nn.Module):
+        # BartModel 대신 Bart의 인코더만 사용
+        outputs = self.bart.encoder(inputs_embeds=dense_embedding)
+        
+        # 첫 번째 토큰의 출력을 사용하여 분류
+        pooled_output = outputs.last_hidden_state[:, 0, :]  # [batch_size, hidden_size]
+        logits = self.classifier(pooled_output)
+        probabilities = self.sigmoid(logits).squeeze(-1)
+
+        return probabilities
+
+class Critic(nn.Module):
+    def __init__(self):
+        super(Critic, self).__init__()
+        self.bart = BartModel.from_pretrained('facebook/bart-large')
+        self.embedding_layer = self.bart.shared
+        self.classifier = nn.Linear(self.bart.config.hidden_size, 1)
+    
+    def forward(self, input):
+        dense_embedding = input @ self.embedding_layer.weight
+
+        # BartModel 대신 Bart의 인코더만 사용
+        outputs = self.bart.encoder(inputs_embeds=dense_embedding)
+        
+        # 첫 번째 토큰의 출력을 사용하여 분류
+        pooled_output = outputs.last_hidden_state[:, 0, :]  # [batch_size, hidden_size]
+        logits = self.classifier(pooled_output)
+
+        return logits
+
+class RNNDiscriminator(nn.Module):
     def __init__(self, vocab_size, embedding_dim, hidden_dim, dropout_prob=0.3):
-        super(Discriminator, self).__init__()
+        super(RNNDiscriminator, self).__init__()
 
         self.embedding = nn.Linear(vocab_size, embedding_dim)
 
